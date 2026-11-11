@@ -1,0 +1,190 @@
+{
+  "SPuzzle": {
+    "compilerVersion": "1.0.0-rc.1",
+    "runarCommit": "36b88b83012438d67b13386b5cdbef8b9c5216f2",
+    "templateScriptBytes": 873692,
+    "templateScriptSha256": "9642150e17418e492e5e70ad1cd30f6302f970f4cba022f7ecad248df55f51fb",
+    "codeSeparatorIndex": 873269,
+    "scriptCodeBytes": 422,
+    "abi": {
+      "constructor": {
+        "params": [
+          {
+            "name": "P",
+            "type": "Point"
+          }
+        ]
+      },
+      "methods": [
+        {
+          "name": "unlock",
+          "params": [
+            {
+              "name": "R",
+              "type": "Point"
+            },
+            {
+              "name": "s",
+              "type": "bigint"
+            },
+            {
+              "name": "txPreimage",
+              "type": "SigHashPreimage"
+            }
+          ],
+          "isPublic": true
+        }
+      ]
+    }
+  },
+  "PedersenOpening": {
+    "compilerVersion": "1.0.0-rc.1",
+    "runarCommit": "36b88b83012438d67b13386b5cdbef8b9c5216f2",
+    "templateScriptBytes": 1323240,
+    "templateScriptSha256": "f494aae0320e915471188bbda1cc9cd715a377ad3d32b04b2cd50099a597884e",
+    "codeSeparatorIndex": 1322817,
+    "scriptCodeBytes": 422,
+    "abi": {
+      "constructor": {
+        "params": [
+          {
+            "name": "C",
+            "type": "Point"
+          },
+          {
+            "name": "H",
+            "type": "Point"
+          },
+          {
+            "name": "v",
+            "type": "bigint"
+          }
+        ]
+      },
+      "methods": [
+        {
+          "name": "unlock",
+          "params": [
+            {
+              "name": "R",
+              "type": "Point"
+            },
+            {
+              "name": "s",
+              "type": "bigint"
+            },
+            {
+              "name": "txPreimage",
+              "type": "SigHashPreimage"
+            }
+          ],
+          "isPublic": true
+        }
+      ]
+    }
+  },
+  "ChaumPedersen": {
+    "compilerVersion": "1.0.0-rc.1",
+    "runarCommit": "36b88b83012438d67b13386b5cdbef8b9c5216f2",
+    "templateScriptBytes": 1746801,
+    "templateScriptSha256": "18d8f4d5c257b7aec484fd2ca19974049cd737d4b95c83c581f9163c56a498f1",
+    "codeSeparatorIndex": 1746378,
+    "scriptCodeBytes": 422,
+    "abi": {
+      "constructor": {
+        "params": [
+          {
+            "name": "P1",
+            "type": "Point"
+          },
+          {
+            "name": "P2",
+            "type": "Point"
+          },
+          {
+            "name": "H",
+            "type": "Point"
+          }
+        ]
+      },
+      "methods": [
+        {
+          "name": "unlock",
+          "params": [
+            {
+              "name": "R1",
+              "type": "Point"
+            },
+            {
+              "name": "R2",
+              "type": "Point"
+            },
+            {
+              "name": "s",
+              "type": "bigint"
+            },
+            {
+              "name": "txPreimage",
+              "type": "SigHashPreimage"
+            }
+          ],
+          "isPublic": true
+        }
+      ]
+    }
+  },
+  "OrProof": {
+    "compilerVersion": "1.0.0-rc.1",
+    "runarCommit": "36b88b83012438d67b13386b5cdbef8b9c5216f2",
+    "templateScriptBytes": 1747018,
+    "templateScriptSha256": "5c5671e961a56029ae78ababd891e4d562c70576f8aabd3698e14b33763abe44",
+    "codeSeparatorIndex": 1746595,
+    "scriptCodeBytes": 422,
+    "abi": {
+      "constructor": {
+        "params": [
+          {
+            "name": "P1",
+            "type": "Point"
+          },
+          {
+            "name": "P2",
+            "type": "Point"
+          }
+        ]
+      },
+      "methods": [
+        {
+          "name": "unlock",
+          "params": [
+            {
+              "name": "R1",
+              "type": "Point"
+            },
+            {
+              "name": "R2",
+              "type": "Point"
+            },
+            {
+              "name": "s1",
+              "type": "bigint"
+            },
+            {
+              "name": "s2",
+              "type": "bigint"
+            },
+            {
+              "name": "e1",
+              "type": "bigint"
+            },
+            {
+              "name": "txPreimage",
+              "type": "SigHashPreimage"
+            }
+          ],
+          "isPublic": true
+        }
+      ]
+    }
+  }
+}

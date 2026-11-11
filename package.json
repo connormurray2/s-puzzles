@@ -1,0 +1,30 @@
+{
+  "name": "s-puzzles",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "S-puzzles: zero-knowledge spending conditions in the signature response, implemented in Runar for BSV",
+  "scripts": {
+    "setup": "bash scripts/setup-runar.sh",
+    "compile": "tsx scripts/compile.ts",
+    "test": "vitest run",
+    "wallet": "tsx scripts/wallet.ts",
+    "demo": "tsx scripts/demo.ts"
+  },
+  "dependencies": {
+    "@bsv/sdk": "4.0.1",
+    "@noble/curves": "^1.9.0",
+    "@noble/hashes": "^1.8.0",
+    "runar-compiler": "link:./vendor/runar/packages/runar-compiler",
+    "runar-ir-schema": "link:./vendor/runar/packages/runar-ir-schema",
+    "runar-lang": "link:./vendor/runar/packages/runar-lang",
+    "runar-sdk": "link:./vendor/runar/packages/runar-sdk",
+    "runar-testing": "link:./vendor/runar/packages/runar-testing"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^3.0.0"
+  }
+}
