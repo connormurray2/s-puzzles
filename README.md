@@ -11,8 +11,8 @@ lives, in the same way an R-puzzle locks to the `r` value of an ECDSA signature.
 The Fiat–Shamir challenge is computed from the spending transaction itself, so a proof seen in the
 mempool cannot be reused to send the funds somewhere else.
 
-This repository implements the construction from the paper *S-Puzzles: Zero-Knowledge Spending
-Conditions in the Signature Response* and the three extensions it lists.
+This repository implements the construction from the paper [*S-Puzzles: Zero-Knowledge Spending
+Conditions in the Signature Response*](docs/PAPER.md) and the three extensions it lists.
 
 ## The four puzzles
 

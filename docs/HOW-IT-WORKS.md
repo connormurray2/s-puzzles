@@ -132,13 +132,7 @@ multiplications per key.
 - **Cost.** Script size is bounded by miner policy on BSV, not consensus. The practical limits
   are fees, validation time and whether miners accept scripts of 0.9 to 1.7 MB.
 
-## Differences from the paper
+## Relation to the paper
 
-- `checkPreimage` is the last statement instead of the first, which shrinks every spend from
-  about 874 KB to under 1 KB (see above).
-- The group order is written as a decimal literal and the range check uses `within`, following
-  Rúnar's own Schnorr example, so the contract lowers identically in every Rúnar frontend.
-- The paper reports 873,670 bytes at Rúnar commit `919e679`; this repository measures 873,692
-  bytes at `36b88b8` with the reordered contract.
-- The paper notes an end-to-end spend with `checkPreimage` against a real transaction had not
-  been run. The tests here do exactly that in the script interpreter.
+The paper is in [PAPER.md](PAPER.md). Its first version put `checkPreimage` first and covered
+only the basic puzzle; it has since been updated to match this repository.
