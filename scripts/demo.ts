@@ -34,7 +34,8 @@ const OUT_FILE = `deployments/${label}.json`;
 
 interface Entry {
   secrets: { x: string; aux?: string };
-  lock?: { txid: string; vout: number; satoshis: number; txBytes: number; scriptBytes: number; hex?: string };
+  /** hex: the lock transaction (EF or raw). pending: saved, not yet confirmed sent. */
+  lock?: { txid: string; vout: number; satoshis: number; txBytes: number; scriptBytes: number; hex?: string; pending?: boolean };
   spend?: Record<string, unknown>;
 }
 type State = Partial<Record<ContractName, Entry>>;
@@ -67,10 +68,11 @@ console.log(`${label}: ${wallet.address} has ${pool.reduce((a, u) => a + u.satos
 
 // Every input goes out with its parent attached (Extended Format). Use the
 // transaction this run built, else the lock saved in the state file, else WoC.
+const fromSaved = (h: string) => (h.slice(8, 20) === '0000000000ef' ? Transaction.fromHexEF(h) : Transaction.fromHex(h));
 const parentOf = async (txid: string, inHand?: Transaction): Promise<Transaction> => {
   if (inHand) return inHand;
   const saved = Object.values(state).find((e) => e?.lock?.txid === txid && e.lock.hex);
-  return saved ? Transaction.fromHex(saved.lock!.hex!) : fetchTx(network, txid);
+  return saved ? fromSaved(saved.lock!.hex!) : fetchTx(network, txid);
 };
 
 // A dry run still serializes Extended Format, so a missing parent fails here.
@@ -96,8 +98,18 @@ for (const name of CONTRACT_NAMES) {
   console.log(`\n== ${puzzle.title}`);
 
   // ---- Lock: fund an output carrying the s-puzzle script -----------------
+  // Each transaction is saved before it is sent. A send that ends without a
+  // verdict (timeout, 5xx) may still be mined, so a rerun re-sends the same
+  // bytes instead of building a second lock or a double spend.
   let lockTx: Transaction | undefined;
-  if (!entry.lock) {
+  if (entry.lock?.pending) {
+    lockTx = fromSaved(entry.lock.hex!);
+    console.log(`   lock  ${entry.lock.txid}  (saved by an earlier run; sending again)`);
+    await send(lockTx);
+    entry.lock.pending = false;
+    save();
+    pool = [{ txid: entry.lock.txid, vout: 1, satoshis: lockTx.outputs[1]!.satoshis!, parent: lockTx }];
+  } else if (!entry.lock) {
     const inputs = pool;
     const parents = await Promise.all(inputs.map((u) => parentOf(u.txid, u.parent)));
     const total = inputs.reduce((a, u) => a + u.satoshis, 0);
@@ -122,22 +134,31 @@ for (const name of CONTRACT_NAMES) {
     const change = total - puzzleSats - fee;
     if (change < 1) throw new Error(`${name}: need ${puzzleSats + fee + 1} sats, wallet has ${total}`);
     const tx = await signLock(change);
-    const txid = await send(tx);
-    const txHex = tx.toHex();
+    const txid = tx.id('hex');
     entry.lock = {
       txid, vout: 0, satoshis: puzzleSats,
-      txBytes: txHex.length / 2, scriptBytes: script.length / 2, hex: txHex,
+      txBytes: tx.toHex().length / 2, scriptBytes: script.length / 2, hex: tx.toHexEF(), pending: true,
     };
+    save();
+    await send(tx);
+    entry.lock.pending = false;
+    save();
     lockTx = tx;
     pool = [{ txid, vout: 1, satoshis: change, parent: tx }];
-    save();
     console.log(`   lock  ${txid}  (${entry.lock.txBytes} bytes, fee ${fee} sats)`);
   } else {
     console.log(`   lock  ${entry.lock.txid}  (already done)`);
   }
 
   // ---- Spend: prove knowledge and pay the funds back to the wallet -------
-  if (!entry.spend) {
+  const pendingSpend = entry.spend?.pending ? entry.spend : undefined;
+  if (pendingSpend) {
+    console.log(`   spend ${pendingSpend.txid}  (saved by an earlier run; sending again)`);
+    await send(fromSaved(pendingSpend.ef as string));
+    delete pendingSpend.ef;
+    delete pendingSpend.pending;
+    save();
+  } else if (!entry.spend) {
     const utxo: PuzzleUtxo = { txid: entry.lock.txid, vout: entry.lock.vout, satoshis: entry.lock.satoshis, script };
     const outFor = (fee: number) => [{ satoshis: utxo.satoshis - fee, script: walletScript.toHex() }];
     // Size the transaction once, then build it for real with the right fee.
@@ -152,7 +173,7 @@ for (const name of CONTRACT_NAMES) {
       throw new Error(`${name}: lock ${utxo.txid}:${utxo.vout} does not carry this puzzle`);
     }
     built.tx.inputs[0]!.sourceTransaction = parent;
-    const txid = await send(built.tx);
+    const txid = built.tx.id('hex');
     entry.spend = {
       txid,
       txBytes: built.tx.toHex().length / 2,
@@ -160,7 +181,13 @@ for (const name of CONTRACT_NAMES) {
       outpoint: built.binding.outpoint,
       hashOutputs: built.binding.hashOutputs,
       proof: built.proof.map((v) => (typeof v === 'bigint' ? v.toString() : v)),
+      ef: built.tx.toHexEF(),
+      pending: true,
     };
+    save();
+    await send(built.tx);
+    delete entry.spend.ef;
+    delete entry.spend.pending;
     save();
     console.log(`   spend ${txid}  (${entry.spend.txBytes} bytes, fee ${fee} sats, verified locally)`);
   } else {
@@ -168,7 +195,7 @@ for (const name of CONTRACT_NAMES) {
   }
 
   const method = puzzle.contract.artifact.abi.methods.find((m: any) => m.name === 'unlock')!;
-  const { hex: _lockHex, ...lockRecord } = entry.lock;
+  const { hex: _hex, pending: _pending, ...lockRecord } = entry.lock;
   records.push({
     contract: name,
     title: puzzle.title,

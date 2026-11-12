@@ -96,10 +96,12 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
  * Submit to the BSV Broadcaster and wait until it reports the transaction
- * SEEN_ON_NETWORK (or later) with no competing transaction. A 2xx from
- * POST /tx is only provisional, so the status read is the real answer.
- * Sends Extended Format, which the broadcaster needs to validate without
- * looking parents up.
+ * SEEN_ON_NETWORK (or later) with no competing transaction. The response to
+ * POST /tx is only provisional: a 2xx is not acceptance, and a 5xx is not
+ * refusal (a 1.3 MB lock that got `500 failed to submit` was mined
+ * anyway). Only a 4xx is a verdict; everything else is settled by
+ * reading the status. Sends Extended Format, which the broadcaster needs to
+ * validate without looking parents up.
  */
 export async function broadcast(n: Network, tx: Transaction): Promise<string> {
   const txid = tx.id('hex');
@@ -109,23 +111,30 @@ export async function broadcast(n: Network, tx: Transaction): Promise<string> {
     throw new Error(`${txid}: every input needs its parent attached to send Extended Format`);
   }
   const body = tx.toHexEF();
-  const r = await fetch(`${BROADCASTER(n)}/tx`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain' },
-    body,
-    signal: AbortSignal.timeout(180_000),
-  });
-  const text = await r.text();
-  if (!r.ok && !/\b(TX_EXISTS|txn-already-known)\b/.test(text)) {
-    throw new Error(`POST /tx ${txid} -> ${r.status} ${text}`);
+  const post = () =>
+    fetch(`${BROADCASTER(n)}/tx`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body,
+      signal: AbortSignal.timeout(180_000),
+    }).then(
+      async (r) => ({ status: r.status, ok: r.ok, text: await r.text() }),
+      (e) => ({ status: 0, ok: false, text: String(e) }),
+    );
+
+  const first = await post();
+  if (!first.ok && !/\b(TX_EXISTS|txn-already-known)\b/.test(first.text)) {
+    const verdict = first.status >= 400 && first.status < 500 && first.status !== 429;
+    if (verdict) throw new Error(`POST /tx ${txid} -> ${first.status} ${first.text}`);
+    console.warn(`   POST /tx -> ${first.status || 'no response'} ${first.text.slice(0, 120)}; no verdict, reading status`);
   }
 
-  const timeoutMs = Number(process.env.SEEN_TIMEOUT_MS ?? 180_000);
+  const timeoutMs = Number(process.env.SEEN_TIMEOUT_MS ?? 600_000);
   const deadline = Date.now() + timeoutMs;
   let last: TxStatus | null = null;
   let refusedReads = 0;
   while (Date.now() < deadline) {
-    await sleep(1_000);
+    await sleep(2_000);
     last = await txStatus(n, txid).catch(() => last);
     if (!last) continue;
     if (REFUSED.has(last.txStatus)) {
@@ -134,7 +143,7 @@ export async function broadcast(n: Network, tx: Transaction): Promise<string> {
         throw new Error(`${txid} ${last.txStatus}: ${last.extraInfo ?? ''} ${JSON.stringify(last.competingTxs ?? [])}`);
       }
       await sleep(20_000);
-      await fetch(`${BROADCASTER(n)}/tx`, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body }).catch(() => {});
+      await post();
       continue;
     }
     if ((last.competingTxs ?? []).length > 0) continue;
