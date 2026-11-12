@@ -10,12 +10,13 @@
  * Broadcaster; defaults to the public instance for NETWORK).
  *
  * Progress is saved to .demo-state.json (gitignored, holds the puzzle
- * secrets) so an interrupted run resumes instead of stranding funds. Public
+ * secrets and each lock transaction) so an interrupted run resumes instead
+ * of stranding funds. Public
  * results go to deployments/<network>.json and docs/TRANSACTIONS.md.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { LockingScript, P2PKH, Transaction } from '@bsv/sdk';
-import { broadcast, explorerTx, fetchUtxos, stubSource, type FundingUtxo, type Network } from '../src/chain.js';
+import { broadcast, explorerTx, fetchTx, fetchUtxos, type FundingUtxo, type Network } from '../src/chain.js';
 import { CONTRACT_NAMES, type ContractName } from '../src/compile.js';
 import { PUZZLE_FACTORIES, type PuzzleSecrets } from '../src/puzzles.js';
 import { buildSpend, verifySpend, type PuzzleUtxo } from '../src/spend.js';
@@ -33,7 +34,7 @@ const OUT_FILE = `deployments/${label}.json`;
 
 interface Entry {
   secrets: { x: string; aux?: string };
-  lock?: { txid: string; vout: number; satoshis: number; txBytes: number; scriptBytes: number };
+  lock?: { txid: string; vout: number; satoshis: number; txBytes: number; scriptBytes: number; hex?: string };
   spend?: Record<string, unknown>;
 }
 type State = Partial<Record<ContractName, Entry>>;
@@ -54,7 +55,7 @@ let pool: FundingUtxo[];
 if (dryRun) {
   const fake = new Transaction();
   fake.addOutput({ satoshis: 50_000_000, lockingScript: walletScript });
-  pool = [{ txid: fake.id('hex'), vout: 0, satoshis: 50_000_000 }];
+  pool = [{ txid: fake.id('hex'), vout: 0, satoshis: 50_000_000, parent: fake }];
 } else {
   // Confirmed coins only: an unconfirmed parent that the miners never pick up
   // would stall every lock chained from it. Change from a lock in this run is
@@ -64,7 +65,20 @@ if (dryRun) {
 }
 console.log(`${label}: ${wallet.address} has ${pool.reduce((a, u) => a + u.satoshis, 0)} sats; fee rate ${feeRate} sat/kB`);
 
-const send = async (tx: Transaction): Promise<string> => (dryRun ? tx.id('hex') : broadcast(network, tx));
+// Every input goes out with its parent attached (Extended Format). Use the
+// transaction this run built, else the lock saved in the state file, else WoC.
+const parentOf = async (txid: string, inHand?: Transaction): Promise<Transaction> => {
+  if (inHand) return inHand;
+  const saved = Object.values(state).find((e) => e?.lock?.txid === txid && e.lock.hex);
+  return saved ? Transaction.fromHex(saved.lock!.hex!) : fetchTx(network, txid);
+};
+
+// A dry run still serializes Extended Format, so a missing parent fails here.
+const send = async (tx: Transaction): Promise<string> => {
+  if (!dryRun) return broadcast(network, tx);
+  tx.toHexEF();
+  return tx.id('hex');
+};
 
 const records: Record<string, unknown>[] = [];
 
@@ -82,21 +96,22 @@ for (const name of CONTRACT_NAMES) {
   console.log(`\n== ${puzzle.title}`);
 
   // ---- Lock: fund an output carrying the s-puzzle script -----------------
+  let lockTx: Transaction | undefined;
   if (!entry.lock) {
     const inputs = pool;
+    const parents = await Promise.all(inputs.map((u) => parentOf(u.txid, u.parent)));
     const total = inputs.reduce((a, u) => a + u.satoshis, 0);
-    // Sign with each input's amount and script given directly, so a funding
-    // coin needs no parent transaction. Size the fee from the signed draft.
+    // Size the fee from a signed draft, then sign again with the real change.
     const signLock = async (change: number) => {
       const tx = new Transaction();
-      for (const u of inputs) {
+      inputs.forEach((u, i) => {
         tx.addInput({
-          sourceTXID: u.txid,
+          sourceTransaction: parents[i],
           sourceOutputIndex: u.vout,
-          unlockingScriptTemplate: p2pkh.unlock(wallet.key, 'all', false, u.satoshis, walletScript),
+          unlockingScriptTemplate: p2pkh.unlock(wallet.key),
           sequence: 0xffffffff,
         });
-      }
+      });
       tx.addOutput({ satoshis: puzzleSats, lockingScript: LockingScript.fromHex(script) });
       tx.addOutput({ satoshis: change, lockingScript: walletScript });
       await tx.sign();
@@ -107,13 +122,14 @@ for (const name of CONTRACT_NAMES) {
     const change = total - puzzleSats - fee;
     if (change < 1) throw new Error(`${name}: need ${puzzleSats + fee + 1} sats, wallet has ${total}`);
     const tx = await signLock(change);
-    inputs.forEach((u, i) => { tx.inputs[i]!.sourceTransaction = stubSource(u.vout, u.satoshis, walletScript); });
     const txid = await send(tx);
+    const txHex = tx.toHex();
     entry.lock = {
       txid, vout: 0, satoshis: puzzleSats,
-      txBytes: tx.toHex().length / 2, scriptBytes: script.length / 2,
+      txBytes: txHex.length / 2, scriptBytes: script.length / 2, hex: txHex,
     };
-    pool = [{ txid, vout: 1, satoshis: change }];
+    lockTx = tx;
+    pool = [{ txid, vout: 1, satoshis: change, parent: tx }];
     save();
     console.log(`   lock  ${txid}  (${entry.lock.txBytes} bytes, fee ${fee} sats)`);
   } else {
@@ -130,9 +146,12 @@ for (const name of CONTRACT_NAMES) {
     const built = buildSpend(puzzle.contract, utxo, outFor(fee), puzzle.prove);
     const check = verifySpend(built.tx, utxo);
     if (!check.valid) throw new Error(`${name}: local script verification failed: ${check.error}`);
-    // Carry the puzzle output as the input's source so the spend goes out in
-    // Extended Format; only that output's satoshis and script are needed.
-    built.tx.inputs[0]!.sourceTransaction = stubSource(utxo.vout, utxo.satoshis, LockingScript.fromHex(script));
+    const parent = await parentOf(utxo.txid, lockTx);
+    const out = parent.outputs[utxo.vout];
+    if (out?.satoshis !== utxo.satoshis || out.lockingScript.toHex() !== script) {
+      throw new Error(`${name}: lock ${utxo.txid}:${utxo.vout} does not carry this puzzle`);
+    }
+    built.tx.inputs[0]!.sourceTransaction = parent;
     const txid = await send(built.tx);
     entry.spend = {
       txid,
@@ -149,6 +168,7 @@ for (const name of CONTRACT_NAMES) {
   }
 
   const method = puzzle.contract.artifact.abi.methods.find((m: any) => m.name === 'unlock')!;
+  const { hex: _lockHex, ...lockRecord } = entry.lock;
   records.push({
     contract: name,
     title: puzzle.title,
@@ -156,7 +176,7 @@ for (const name of CONTRACT_NAMES) {
     witness: puzzle.witness,
     publicParams: puzzle.publicParams,
     proofFields: method.params.slice(0, -1).map((p: any) => p.name),
-    lock: entry.lock,
+    lock: lockRecord,
     spend: entry.spend,
   });
 }

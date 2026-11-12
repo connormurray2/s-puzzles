@@ -1,9 +1,10 @@
 /**
  * Minimal chain access for the demo. Broadcasts and txid status go to the
- * BSV Broadcaster (formerly Arcade); WhatsOnChain is used only to list the
- * funding address's UTXOs, which the broadcaster has no index for.
+ * BSV Broadcaster (formerly Arcade); WhatsOnChain lists the funding address's
+ * UTXOs, which the broadcaster has no index for, and serves a funding coin's
+ * parent when the demo did not build it itself.
  */
-import { LockingScript, Transaction } from '@bsv/sdk';
+import { Transaction } from '@bsv/sdk';
 
 export type Network = 'testnet' | 'mainnet';
 
@@ -11,19 +12,8 @@ export interface FundingUtxo {
   txid: string;
   vout: number;
   satoshis: number;
-}
-
-/**
- * A stand-in parent that carries only output `vout`. Extended Format needs
- * just that output's satoshis and script. Attach it after signing: the SDK
- * checks a parent's own id against sourceTXID when it signs, and a stub's id
- * is not the real one.
- */
-export function stubSource(vout: number, satoshis: number, lockingScript: LockingScript): Transaction {
-  const tx = new Transaction();
-  tx.outputs = Array.from({ length: vout + 1 }, () => null as any);
-  tx.outputs[vout] = { satoshis, lockingScript };
-  return tx;
+  /** The transaction that created this output, when already in hand. */
+  parent?: Transaction;
 }
 
 const WOC = (n: Network) => `https://api.whatsonchain.com/v1/bsv/${n === 'mainnet' ? 'main' : 'test'}`;
@@ -66,9 +56,21 @@ export async function fetchUtxos(
       entries.push(e);
     }
   }
-  // No parent download: WoC does not always serve the hex of a large
-  // unconfirmed transaction, and a P2PKH input only needs its own output.
   return entries.map((e) => ({ txid: e.tx_hash, vout: e.tx_pos, satoshis: e.value }));
+}
+
+/**
+ * Download a transaction from WhatsOnChain. Prefer a parent you built and kept:
+ * WoC does not always serve the hex of a large unconfirmed transaction.
+ */
+export async function fetchTx(n: Network, txid: string): Promise<Transaction> {
+  const r = await fetch(`${WOC(n)}/tx/${txid}/hex`);
+  if (!r.ok) {
+    throw new Error(`GET tx ${txid} hex -> ${r.status}; WoC may not serve a large unconfirmed transaction, so wait for a block and rerun`);
+  }
+  const tx = Transaction.fromHex((await r.text()).trim());
+  if (tx.id('hex') !== txid) throw new Error(`WoC returned a different transaction for ${txid}`);
+  return tx;
 }
 
 export interface TxStatus {
@@ -96,12 +98,17 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  * Submit to the BSV Broadcaster and wait until it reports the transaction
  * SEEN_ON_NETWORK (or later) with no competing transaction. A 2xx from
  * POST /tx is only provisional, so the status read is the real answer.
- * Sends Extended Format when every input carries its source output, which
- * the broadcaster needs to validate without looking parents up.
+ * Sends Extended Format, which the broadcaster needs to validate without
+ * looking parents up.
  */
 export async function broadcast(n: Network, tx: Transaction): Promise<string> {
   const txid = tx.id('hex');
-  const body = tx.inputs.every((i) => i.sourceTransaction) ? tx.toHexEF() : tx.toHex();
+  // Never fall back to raw hex: the broadcaster refuses it with 460 and keeps
+  // that refusal on record as REJECTED for the txid, even after it is mined.
+  if (!tx.inputs.every((i) => i.sourceTransaction)) {
+    throw new Error(`${txid}: every input needs its parent attached to send Extended Format`);
+  }
+  const body = tx.toHexEF();
   const r = await fetch(`${BROADCASTER(n)}/tx`, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain' },
