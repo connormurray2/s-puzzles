@@ -6,15 +6,16 @@
  *   pnpm demo --only=SPuzzle  a single variant
  *
  * Environment: NETWORK (testnet|mainnet, default testnet), FEE_RATE (sat/kB,
- * default 100), PUZZLE_SATS (default 5000), FUNDING_WIF, BROADCASTER (woc|arc).
+ * default 100), PUZZLE_SATS (default 5000), FUNDING_WIF, BROADCASTER_URL (the BSV
+ * Broadcaster; defaults to the public instance for NETWORK).
  *
  * Progress is saved to .demo-state.json (gitignored, holds the puzzle
  * secrets) so an interrupted run resumes instead of stranding funds. Public
  * results go to deployments/<network>.json and docs/TRANSACTIONS.md.
  */
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { LockingScript, P2PKH, SatoshisPerKilobyte, Transaction } from '@bsv/sdk';
-import { broadcast, explorerTx, fetchUtxos, type FundingUtxo, type Network } from '../src/chain.js';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { LockingScript, P2PKH, Transaction } from '@bsv/sdk';
+import { broadcast, explorerTx, fetchUtxos, stubSource, type FundingUtxo, type Network } from '../src/chain.js';
 import { CONTRACT_NAMES, type ContractName } from '../src/compile.js';
 import { PUZZLE_FACTORIES, type PuzzleSecrets } from '../src/puzzles.js';
 import { buildSpend, verifySpend, type PuzzleUtxo } from '../src/spend.js';
@@ -53,9 +54,13 @@ let pool: FundingUtxo[];
 if (dryRun) {
   const fake = new Transaction();
   fake.addOutput({ satoshis: 50_000_000, lockingScript: walletScript });
-  pool = [{ txid: fake.id('hex'), vout: 0, satoshis: 50_000_000, sourceTransaction: fake }];
+  pool = [{ txid: fake.id('hex'), vout: 0, satoshis: 50_000_000 }];
 } else {
-  pool = await fetchUtxos(network, wallet.address);
+  // Confirmed coins only: an unconfirmed parent that the miners never pick up
+  // would stall every lock chained from it. Change from a lock in this run is
+  // still chained directly, below.
+  pool = await fetchUtxos(network, wallet.address, { confirmedOnly: true });
+  if (pool.length === 0) throw new Error('No confirmed funding coins yet; wait for a block and rerun.');
 }
 console.log(`${label}: ${wallet.address} has ${pool.reduce((a, u) => a + u.satoshis, 0)} sats; fee rate ${feeRate} sat/kB`);
 
@@ -78,27 +83,39 @@ for (const name of CONTRACT_NAMES) {
 
   // ---- Lock: fund an output carrying the s-puzzle script -----------------
   if (!entry.lock) {
-    const tx = new Transaction();
-    for (const u of pool) {
-      tx.addInput({
-        sourceTransaction: u.sourceTransaction,
-        sourceOutputIndex: u.vout,
-        unlockingScriptTemplate: p2pkh.unlock(wallet.key),
-        sequence: 0xffffffff,
-      });
-    }
-    tx.addOutput({ satoshis: puzzleSats, lockingScript: LockingScript.fromHex(script) });
-    tx.addOutput({ lockingScript: walletScript, change: true });
-    await tx.fee(new SatoshisPerKilobyte(feeRate));
-    await tx.sign();
+    const inputs = pool;
+    const total = inputs.reduce((a, u) => a + u.satoshis, 0);
+    // Sign with each input's amount and script given directly, so a funding
+    // coin needs no parent transaction. Size the fee from the signed draft.
+    const signLock = async (change: number) => {
+      const tx = new Transaction();
+      for (const u of inputs) {
+        tx.addInput({
+          sourceTXID: u.txid,
+          sourceOutputIndex: u.vout,
+          unlockingScriptTemplate: p2pkh.unlock(wallet.key, 'all', false, u.satoshis, walletScript),
+          sequence: 0xffffffff,
+        });
+      }
+      tx.addOutput({ satoshis: puzzleSats, lockingScript: LockingScript.fromHex(script) });
+      tx.addOutput({ satoshis: change, lockingScript: walletScript });
+      await tx.sign();
+      return tx;
+    };
+    const draft = await signLock(total - puzzleSats);
+    const fee = feeFor(draft.toHex().length / 2 + 2);
+    const change = total - puzzleSats - fee;
+    if (change < 1) throw new Error(`${name}: need ${puzzleSats + fee + 1} sats, wallet has ${total}`);
+    const tx = await signLock(change);
+    inputs.forEach((u, i) => { tx.inputs[i]!.sourceTransaction = stubSource(u.vout, u.satoshis, walletScript); });
     const txid = await send(tx);
     entry.lock = {
       txid, vout: 0, satoshis: puzzleSats,
       txBytes: tx.toHex().length / 2, scriptBytes: script.length / 2,
     };
-    pool = tx.outputs[1] ? [{ txid, vout: 1, satoshis: tx.outputs[1].satoshis!, sourceTransaction: tx }] : [];
+    pool = [{ txid, vout: 1, satoshis: change }];
     save();
-    console.log(`   lock  ${txid}  (${entry.lock.txBytes} bytes, fee ${tx.getFee()} sats)`);
+    console.log(`   lock  ${txid}  (${entry.lock.txBytes} bytes, fee ${fee} sats)`);
   } else {
     console.log(`   lock  ${entry.lock.txid}  (already done)`);
   }
@@ -113,6 +130,9 @@ for (const name of CONTRACT_NAMES) {
     const built = buildSpend(puzzle.contract, utxo, outFor(fee), puzzle.prove);
     const check = verifySpend(built.tx, utxo);
     if (!check.valid) throw new Error(`${name}: local script verification failed: ${check.error}`);
+    // Carry the puzzle output as the input's source so the spend goes out in
+    // Extended Format; only that output's satoshis and script are needed.
+    built.tx.inputs[0]!.sourceTransaction = stubSource(utxo.vout, utxo.satoshis, LockingScript.fromHex(script));
     const txid = await send(built.tx);
     entry.spend = {
       txid,
@@ -141,6 +161,7 @@ for (const name of CONTRACT_NAMES) {
   });
 }
 
+mkdirSync('deployments', { recursive: true });
 writeFileSync(OUT_FILE, JSON.stringify({ network: label, feeRate, puzzles: records }, null, 2) + '\n');
 console.log(`\nwrote ${OUT_FILE}`);
 
