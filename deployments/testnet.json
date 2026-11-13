@@ -1,0 +1,143 @@
+{
+  "network": "testnet",
+  "feeRate": 100,
+  "puzzles": [
+    {
+      "contract": "SPuzzle",
+      "title": "Basic s-puzzle (Schnorr proof of knowledge)",
+      "statement": "P = x·G",
+      "witness": "x",
+      "publicParams": {
+        "P": "2f956944822380a2acac06787aac1e0c90b9649668b5cccb9e519d05e22623a2a86dcd0f96c3797901799d99008c0fbde39fcb7ea0461d9197233ae74b5deb23"
+      },
+      "proofFields": [
+        "R",
+        "s"
+      ],
+      "lock": {
+        "txid": "cf96ede518772b0829bc80f387ca089f2d980422623007fc4bdd9e1285946749",
+        "vout": 0,
+        "satoshis": 5000,
+        "txBytes": 874025,
+        "scriptBytes": 873820
+      },
+      "spend": {
+        "txid": "64587ca5ebecfe879bce9eb24fe6daec6686a30d34834aa73c6148a8ba320e1a",
+        "txBytes": 769,
+        "fee": 78,
+        "outpoint": "49679485129edd4bfc0730622204982d9f08ca87f380bc29082b7718e5ed96cf00000000",
+        "hashOutputs": "a4ad46260d04356f8b7ca6bb7f5ad9647f98188c7c8df6b4cfcaacd67fa6d83a",
+        "proof": [
+          "606157a729b63612e3ce69d6d1671e3a0f249b13f32d011878a121a9cbfa8a98dc85391339973e74c279d1c49281a7bf2418dcdf2903627469db522ad3553426",
+          "30301118970512124874576643576755781337055244430519681953901956484477862117265"
+        ]
+      }
+    },
+    {
+      "contract": "PedersenOpening",
+      "title": "Pedersen commitment opening",
+      "statement": "C = v·H + b·G for the published v",
+      "witness": "the blinding factor b",
+      "publicParams": {
+        "C": "4a5551b9110f80daa9fdfb40335a1b9fd43ddcd58388975ed0fc3e16162a021577ceeef4cd6a6e29ccd8005e10835dd04909c5e3c9db10ff8677300097f99ae2",
+        "H": "fdb046babeb0cd27995316a29b4e559826c57ee9bd29d6485ccd40b60e8a63dfd58808ef92cc96c94af9449b14a93bc1af736f3d4739f5778eccbbe42b756b96",
+        "v": "21000000"
+      },
+      "proofFields": [
+        "R",
+        "s"
+      ],
+      "lock": {
+        "txid": "32799985be18af3ff8e3573c840b98494ada4f5101aeabec8b8c16526a822fdf",
+        "vout": 0,
+        "satoshis": 5000,
+        "txBytes": 1323577,
+        "scriptBytes": 1323372
+      },
+      "spend": {
+        "txid": "09ec58cbc69d54a65b9361f424e87a0ee859694e1d035c9df9b9d0f75fcd295a",
+        "txBytes": 769,
+        "fee": 78,
+        "outpoint": "df2f826a52168c8becabae01514fda4a49980b843c57e3f83faf18be8599793200000000",
+        "hashOutputs": "a4ad46260d04356f8b7ca6bb7f5ad9647f98188c7c8df6b4cfcaacd67fa6d83a",
+        "proof": [
+          "071f1de09ef959a486d1119bef3aed89efc917231d38800b70ed931768ce5ad0d337a398d56b73d5fa71b6da0ecf696d7a6eb2ba86f3a728054d860a98989dfc",
+          "53660342493509054775661647060457653274718043242041172948549529341575227699332"
+        ]
+      }
+    },
+    {
+      "contract": "ChaumPedersen",
+      "title": "Equality of discrete logs (Chaum–Pedersen)",
+      "statement": "P1 = x·G and P2 = x·H for the same x",
+      "witness": "x",
+      "publicParams": {
+        "P1": "4b42d3000ad5e5922957f2b91f29dfa6a5c7c99985c8b2560a70843608a5d3634bbd2c5aad4bbc3781cba2f0973f89bd53d3bbc9c5b3061490dd9d73203fd91f",
+        "P2": "359886a3b93e4c57b5bf7007524964ceaccfeea11554aed0724462743ce9364fae4409d0988dfd6b510dad543ed57809745e1cd7fa9c83bcb3a960c4d9c570e9",
+        "H": "fdb046babeb0cd27995316a29b4e559826c57ee9bd29d6485ccd40b60e8a63dfd58808ef92cc96c94af9449b14a93bc1af736f3d4739f5778eccbbe42b756b96"
+      },
+      "proofFields": [
+        "R1",
+        "R2",
+        "s"
+      ],
+      "lock": {
+        "txid": "cb5a64ea571b5459ce3ec6f7b79322ab156586062d497e2de8aa7d23098e0acc",
+        "vout": 0,
+        "satoshis": 5000,
+        "txBytes": 1747685,
+        "scriptBytes": 1747185
+      },
+      "spend": {
+        "txid": "7c10feb70ccbcec87f20d1e19bc09ed9e857f791bb0dc66d217679c1f16f27e6",
+        "txBytes": 834,
+        "fee": 84,
+        "outpoint": "cc0a8e09237daae82d7e492d06866515ab2293b7f7c63ece59541b57ea645acb00000000",
+        "hashOutputs": "98bea7f36d662c0ce00c0e27ca65c7fd8baffbdecc5b9c84d82d0fe24d7ed8d9",
+        "proof": [
+          "78ed1a1019aadc40dc863839d0b54b6d2dcff6f9d862aaa8855f1022b0c6ee6af306540c68d2951d8c4045a193c14c121b217f9a337909e6cae31e8143665ec6",
+          "8573ef17668bdf2459451dc4456a8ce83d757246a886cdcdad0920f2dd872a6064aabc8930b43941acd8916235b76277525890e168b83860a3f9f84b559a9e97",
+          "40388713852026973480629642527174902914161767028357161693884563828761386189413"
+        ]
+      }
+    },
+    {
+      "contract": "OrProof",
+      "title": "1-of-2 OR-proof (ring-style spend)",
+      "statement": "P1 = x·G or P2 = x·G",
+      "witness": "one of the two secrets, without revealing which",
+      "publicParams": {
+        "P1": "7d0f1b02c7062876a3097c193088dc2a33b6a658e0976effdfc0d36e4d0751f1161344365a3cc2ee343b48164af233012cf47addfcd4f013a9c7d543b44973a7",
+        "P2": "97267c11439672bb03ff810809b7096905a4297f4bc7324d2c5f320a728afff31135cfcef8187efc53d51fb82a39c55190e20d417f258f538f9c4febf41dbf08"
+      },
+      "proofFields": [
+        "R1",
+        "R2",
+        "s1",
+        "s2",
+        "e1"
+      ],
+      "lock": {
+        "txid": "7d17a9ace30ab4769fcb346f333b46a8a917b93e0915602a1555f1a1186fed69",
+        "vout": 0,
+        "satoshis": 5000,
+        "txBytes": 1747478,
+        "scriptBytes": 1747274
+      },
+      "spend": {
+        "txid": "d7e3531b253e4585a3b537c70e96747b929af2f521596727ae41ae597309487b",
+        "txBytes": 903,
+        "fee": 91,
+        "outpoint": "69ed6f18a1f155152a6015093eb917a9a8463b336f34cb9f76b40ae3aca9177d00000000",
+        "hashOutputs": "64b788147e6a678f80b61e370aaaa641d624846d0edc690c913bdc0751ffe1b6",
+        "proof": [
+          "28d3ab6cf3e96fdaef0b08c37884a6cc6b0614754b55c9431972bf633ddb63813653a50136ba062482b691e7cef67bd8bcb653d3d2a0eab700ce6cb5a6705018",
+          "40e1bbf272b7dfa9a705cf512256bb4cce9db90589b686814a45482110c4c74bce873e69b9dc1b57c26ab32f4fb17a73fc3c78a57f6e8c406949f76591e7ca6e",
+          "78263908489811803022767809532960395659398361850537096183024696017652517910265",
+          "62807711200028573793952029013172413327796360800459743672146664933709729305158",
+          "86843205329019878657935220692844088533025265859323566597430404714990132479977"
+        ]
+      }
+    }
+  ]
+}

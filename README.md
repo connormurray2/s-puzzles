@@ -113,6 +113,7 @@ docs/        explanation and, after a demo run, the on-chain transactions
 ## Status
 
 - Contracts compile and pass all tests against real transactions in the script interpreter.
-- On-chain testnet transactions are pending; see `docs/TRANSACTIONS.md` once `pnpm demo` has run.
+- All four contracts have been locked and spent on BSV testnet through the BSV Broadcaster. `docs/TRANSACTIONS.md` lists the eight transactions with their proofs, and `deployments/testnet.json` holds the same record as data.
+- Locks over 1 MiB need BSV Broadcaster v0.21.0 or later, which fixed [bsv-blockchain/broadcaster#329](https://github.com/bsv-blockchain/broadcaster/issues/329).
 
 This is research code. It has not been audited. Do not lock funds you cannot afford to lose.

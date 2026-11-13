@@ -98,7 +98,18 @@ Sizes are from Rúnar 1.0.0-rc.1, built from main at commit 36b88b8. With the pr
 
 The artifact holds the compiled script hex, its disassembly and the ABI used by the Rúnar SDK to deploy and call the contract.
 
-The 31 tests in test/spuzzles.test.ts each build a real spending transaction and execute the compiled script in the BSV SDK script interpreter, with a real OP_CHECKSIG over a real BIP-143 preimage. For every contract a valid proof unlocks, and the script rejects a proof made with the wrong secret, a copied proof with redirected outputs, and a proof replayed against another UTXO holding the same script. Broadcasting the transactions to testnet is still pending.
+The 31 tests in test/spuzzles.test.ts each build a real spending transaction and execute the compiled script in the BSV SDK script interpreter, with a real OP_CHECKSIG over a real BIP-143 preimage. For every contract a valid proof unlocks, and the script rejects a proof made with the wrong secret, a copied proof with redirected outputs, and a proof replayed against another UTXO holding the same script.
+
+All four contracts have also been locked and spent on BSV testnet, broadcast through the BSV Broadcaster at 100 sat/kB.
+
+| Contract | Lock transaction | Lock size | Spend transaction | Spend size |
+| --- | --- | --- | --- | --- |
+| SPuzzle | cf96ede518772b0829bc80f387ca089f2d980422623007fc4bdd9e1285946749 | 874,025 bytes | 64587ca5ebecfe879bce9eb24fe6daec6686a30d34834aa73c6148a8ba320e1a | 769 bytes |
+| PedersenOpening | 32799985be18af3ff8e3573c840b98494ada4f5101aeabec8b8c16526a822fdf | 1,323,577 bytes | 09ec58cbc69d54a65b9361f424e87a0ee859694e1d035c9df9b9d0f75fcd295a | 769 bytes |
+| ChaumPedersen | cb5a64ea571b5459ce3ec6f7b79322ab156586062d497e2de8aa7d23098e0acc | 1,747,685 bytes | 7c10feb70ccbcec87f20d1e19bc09ed9e857f791bb0dc66d217679c1f16f27e6 | 834 bytes |
+| OrProof | 7d17a9ace30ab4769fcb346f333b46a8a917b93e0915602a1555f1a1186fed69 | 1,747,478 bytes | d7e3531b253e4585a3b537c70e96747b929af2f521596727ae41ae597309487b | 903 bytes |
+
+The locking-script sizes in the earlier table are for the compiled templates. The deployed scripts are 128 to 384 bytes longer because the statement's public parameters are filled in. Spend sizes differ from the table by up to two bytes, because the proof scalars and the preimage-check signature vary in encoded length. The locks cost 87,403 to 174,769 satoshis in fees and the spends 78 to 91. docs/TRANSACTIONS.md lists each proof and the outpoint and hashOutputs it is bound to.
 
 ## 5. Costs, limitations and extensions
 
