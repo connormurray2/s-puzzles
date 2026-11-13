@@ -33,7 +33,8 @@ Both come from the BIP-143 sighash preimage, which the script authenticates with
 ### OP_PUSH_TX
 
 Script cannot read the transaction it is in. The workaround is to push the BIP-143 preimage as
-data and have the script check a signature over it under the publicly known private key `1`.
+data and have the script derive an ECDSA signature from it, using a fixed nonce and a private key
+that is public (Rúnar uses nonce 1 and `d = Gx⁻¹ mod n`), and check that signature.
 `OP_CHECKSIG` only succeeds if the pushed bytes hash to the real sighash of the transaction, so
 after the check the script can trust every field in the preimage. Rúnar exposes this as
 `checkPreimage(txPreimage)`.
